@@ -14,13 +14,13 @@ This library is based on [0xDEADP00L repository](https://github.com/0xDEADP00L/B
   Add this to the dependency section of your `Package.swift` manifest:
 
     ```Swift
-    .package(url: "https://github.com/tesseract-one/Bech32.swift.git", from: "0.1.0")
+    .package(url: "https://github.com/tesseract-one/Bech32.swift.git", from: "1.1.0")
     ```
 
 - **CocoaPods:** Put this in your `Podfile`:
 
     ```Ruby
-    pod 'Bech32.swift', '~> 0.1'
+    pod 'Bech32.swift', '~> 1.1.0'
     ```
 ## Examples
 
