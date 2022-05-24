@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'Bech32.swift'
-  s.version          = '0.1.0'
+  s.version          = '1.1.0'
   s.summary          = 'Bech32, Bech32m and SegWit library for Swift.'
 
   s.description      = <<-DESC
