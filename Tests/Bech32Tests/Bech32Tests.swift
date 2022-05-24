@@ -22,8 +22,7 @@ fileprivate extension Data {
     }
 }
 
-class Bech32Tests: XCTestCase {
-    
+public class Bech32Tests: XCTestCase {
     private let _validChecksum: [String] = [
         "A12UEL5L",
         "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1tt5tgs",
@@ -91,6 +90,15 @@ class Bech32Tests: XCTestCase {
             ])
     ]
     
+    private let _validAddressDataBech32m: [ValidAddressData] = [
+            ("bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr", [
+                0x51, 0x20, 0xa6, 0x08, 0x69, 0xf0, 0xdb, 0xcf, 0x1d, 0xc6, 0x59,
+                0xc9, 0xce, 0xcb, 0xaf, 0x80, 0x50, 0x13, 0x5e, 0xa9, 0xe8, 0xcd,
+                0xc4, 0x87, 0x05, 0x3f, 0x1d, 0xc6, 0x88, 0x09, 0x49, 0xdc, 0x68,
+                0x4c
+                ])
+        ]
+    
     private let _invalidAddressData: [InvalidAddressData] = [
         ("BC", 0, 20),
         ("bc", 0, 21),
@@ -99,15 +107,16 @@ class Bech32Tests: XCTestCase {
         ("bc", 16, 41)
     ]
     
-    let bech32 = Bech32()
-    let addrCoder = SegwitAddrCoder()
+    let bech32 = Bech32.standard
+    let addrCoder = SegwitAddrCoder.standard
+    let addrCoderM = SegwitAddrCoder.modified
     
     func testValidChecksum() {
         for valid in _validChecksum {
             do {
                 let decoded = try bech32.decode(valid)
                 XCTAssertFalse(decoded.hrp.isEmpty, "Empty result for \"\(valid)\"")
-                let recoded = bech32.encode(decoded.hrp, values: decoded.checksum)
+                let recoded = bech32.encode(decoded.hrp, data: decoded.data)
                 XCTAssert(valid.lowercased() == recoded.lowercased(), "Roundtrip encoding failed: \(valid) != \(recoded)")
             } catch {
                 XCTFail("Error decoding \(valid): \(error.localizedDescription)")
@@ -121,9 +130,9 @@ class Bech32Tests: XCTestCase {
             let reason = invalid.error
             do {
                 let decoded = try bech32.decode(checksum)
-                XCTFail("Successfully decoded an invalid checksum \(checksum): \(decoded.checksum.hex)")
+                XCTFail("Successfully decoded an invalid checksum \(checksum): \(decoded.data.hex)")
             } catch let error as Bech32.DecodingError {
-                XCTAssert(errorsEqual(error, reason), "Decoding error mismatch, got \(error.localizedDescription), expected \(reason.localizedDescription)")
+                XCTAssertEqual(error, reason, "Decoding error mismatch, got \(error.localizedDescription), expected \(reason.localizedDescription)")
             } catch {
                 XCTFail("Invalid error occured: \(error.localizedDescription)")
             }
@@ -213,35 +222,30 @@ class Bech32Tests: XCTestCase {
         return result
     }
     
-    private func errorsEqual(_ lhs: Bech32.DecodingError, _ rhs: Bech32.DecodingError) -> Bool {
-        switch lhs {
-        case .checksumMismatch:
-            return rhs == .checksumMismatch
-        case .incorrectChecksumSize:
-            return rhs == .incorrectChecksumSize
-        case .incorrectHrpSize:
-            return rhs == .incorrectHrpSize
-        case .invalidCase:
-            return rhs == .invalidCase
-        case .invalidCharacter:
-            return rhs == .invalidCharacter
-        case .noChecksumMarker:
-            return rhs == .noChecksumMarker
-        case .nonUTF8String:
-            return rhs == .nonUTF8String
-        case .stringLengthExceeded:
-            return rhs == .stringLengthExceeded
-        case .nonPrintableCharacter:
-            return rhs == .nonPrintableCharacter
+    func testValidAddressBech32m() {
+        for valid in _validAddressDataBech32m {
+            let address = valid.address
+            var hrp = "bc"
+
+            var decoded = try? addrCoderM.decode(hrp: hrp, addr: address)
+
+            do {
+                if decoded == nil {
+                    hrp = "tb"
+                    decoded = try addrCoderM.decode(hrp: hrp, addr: address)
+                }
+            } catch {
+                XCTFail("Failed to decode \(address)")
+                continue
+            }
+
+            do {
+                let recoded = try addrCoderM.encode(hrp: hrp, version: decoded!.version, program: decoded!.program)
+                print("recoded Address: \(recoded)")
+                XCTAssertFalse(recoded.isEmpty, "Recoded string is empty for \(address)")
+            } catch {
+                XCTFail("Roundtrip encoding failed for \"\(address)\" with error: \(error.localizedDescription)")
+            }
         }
     }
-    
-    static var allTests = [
-        ("Valid Checksum", testValidChecksum),
-        ("Invalid Checksum", testInvalidChecksum),
-        ("Valid Address", testValidAddress),
-        ("Invalid Address", testInvalidAddress),
-        ("Zero Data", testInvalidAddressEncoding),
-        ("Perfomance", testAddressEncodingDecodingPerfomance)
-    ]
 }

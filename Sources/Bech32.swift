@@ -30,6 +30,14 @@ public class Bech32 {
         1,  0,  3, 16, 11, 28, 12, 14,  6,  4,  2, -1, -1, -1, -1, -1
     ]
     
+    private static let B32M_CONST = UInt32(0x2bc830a3)
+    private static let B32_CONST = UInt32(1)
+    private let checksumConst: UInt32
+    
+    public init(bech32m: Bool = false) {
+        checksumConst = bech32m ? Self.B32M_CONST : Self.B32_CONST
+    }
+    
     /// Find the polynomial with value coefficients mod the generator as 30-bit.
     private func polymod(_ values: Data) -> UInt32 {
         var chk: UInt32 = 1
@@ -59,15 +67,15 @@ public class Bech32 {
     private func verifyChecksum(hrp: String, checksum: Data) -> Bool {
         var data = expandHrp(hrp)
         data.append(checksum)
-        return polymod(data) == 1
+        return polymod(data) == checksumConst
     }
     
     /// Create checksum
-    private func createChecksum(hrp: String, values: Data) -> Data {
+    private func createChecksum(hrp: String, data: Data) -> Data {
         var enc = expandHrp(hrp)
-        enc.append(values)
+        enc.append(data)
         enc.append(Data(repeating: 0x00, count: 6))
-        let mod: UInt32 = polymod(enc) ^ 1
+        let mod: UInt32 = polymod(enc) ^ checksumConst
         var ret: Data = Data(repeating: 0x00, count: 6)
         for i in 0..<6 {
             ret[i] = UInt8((mod >> (5 * (5 - i))) & 31)
@@ -76,9 +84,9 @@ public class Bech32 {
     }
     
     /// Encode Bech32 string
-    public func encode(_ hrp: String, values: Data) -> String {
-        let checksum = createChecksum(hrp: hrp, values: values)
-        var combined = values
+    public func encode(_ hrp: String, data: Data) -> String {
+        let checksum = createChecksum(hrp: hrp, data: data)
+        var combined = data
         combined.append(checksum)
         guard let hrpBytes = hrp.data(using: .utf8) else { return "" }
         var ret = hrpBytes
@@ -90,7 +98,7 @@ public class Bech32 {
     }
     
     /// Decode Bech32 string
-    public func decode(_ str: String) throws -> (hrp: String, checksum: Data) {
+    public func decode(_ str: String) throws -> (hrp: String, data: Data) {
         guard let strBytes = str.data(using: .utf8) else {
             throw DecodingError.nonUTF8String
         }
@@ -145,7 +153,12 @@ public class Bech32 {
 }
 
 extension Bech32 {
-    public enum DecodingError: LocalizedError {
+    public static let standard = Bech32(bech32m: false)
+    public static let modified = Bech32(bech32m: true)
+}
+
+extension Bech32 {
+    public enum DecodingError: LocalizedError, Equatable, Hashable {
         case nonUTF8String
         case nonPrintableCharacter
         case invalidCase

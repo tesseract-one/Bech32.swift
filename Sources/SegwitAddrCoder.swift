@@ -13,10 +13,14 @@ import Foundation
 
 /// Segregated Witness Address encoder/decoder
 public class SegwitAddrCoder {
-    private let bech32 = Bech32()
+    private let bech32: Bech32
+    
+    public init(bech32: Bech32) {
+        self.bech32 = bech32
+    }
     
     /// Convert from one power-of-2 number base to another
-    private func convertBits(from: Int, to: Int, pad: Bool, idata: Data) throws -> Data {
+    public func convertBits(from: Int, to: Int, pad: Bool, idata: Data) throws -> Data {
         var acc: Int = 0
         var bits: Int = 0
         let maxv: Int = (1 << to) - 1
@@ -46,27 +50,27 @@ public class SegwitAddrCoder {
         guard dec.hrp == hrp else {
             throw CoderError.hrpMismatch(dec.hrp, hrp)
         }
-        guard dec.checksum.count >= 1 else {
+        guard dec.data.count >= 1 else {
             throw CoderError.checksumSizeTooLow
         }
-        let conv = try convertBits(from: 5, to: 8, pad: false, idata: dec.checksum.advanced(by: 1))
+        let conv = try convertBits(from: 5, to: 8, pad: false, idata: dec.data.advanced(by: 1))
         guard conv.count >= 2 && conv.count <= 40 else {
             throw CoderError.dataSizeMismatch(conv.count)
         }
-        guard dec.checksum[0] <= 16 else {
-            throw CoderError.segwitVersionNotSupported(dec.checksum[0])
+        guard dec.data[0] <= 16 else {
+            throw CoderError.segwitVersionNotSupported(dec.data[0])
         }
-        if dec.checksum[0] == 0 && conv.count != 20 && conv.count != 32 {
+        if dec.data[0] == 0 && conv.count != 20 && conv.count != 32 {
             throw CoderError.segwitV0ProgramSizeMismatch(conv.count)
         }
-        return (Int(dec.checksum[0]), conv)
+        return (Int(dec.data[0]), conv)
     }
     
     /// Encode segwit address
     public func encode(hrp: String, version: Int, program: Data) throws -> String {
         var enc = Data([UInt8(version)])
         enc.append(try convertBits(from: 8, to: 5, pad: true, idata: program))
-        let result = bech32.encode(hrp, values: enc)
+        let result = bech32.encode(hrp, data: enc)
         guard let _ = try? decode(hrp: hrp, addr: result) else {
             throw CoderError.encodingCheckFailed
         }
@@ -75,7 +79,12 @@ public class SegwitAddrCoder {
 }
 
 extension SegwitAddrCoder {
-    public enum CoderError: LocalizedError {
+    public static let standard = SegwitAddrCoder(bech32: .standard)
+    public static let modified = SegwitAddrCoder(bech32: .modified)
+}
+
+extension SegwitAddrCoder {
+    public enum CoderError: LocalizedError, Equatable, Hashable {
         case bitsConversionFailed
         case hrpMismatch(String, String)
         case checksumSizeTooLow
